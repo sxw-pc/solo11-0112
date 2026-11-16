@@ -76,11 +76,11 @@ def _plan(db):
         visited.add(key);ordered.append(by_id[key])
     for key in sorted(by_id):visit(key)
     return ordered
-def action(command,path,sandbox=None,out=None):
+def action(command,path,sandbox=None,out=None,lease=None):
     db=connect(path);cfg=_cfg(db)
     if command=='recheck':return evaluate(path)
     if command=='plan':
-        plan=_plan(db);target=Path(out or 'backfill-plan.json');body=json.dumps(plan,ensure_ascii=False,indent=2);target.write_text(body,encoding='utf-8')
+        plan=_plan(db);target=Path(out or 'backfill-plan.json');body=json.dumps(plan,ensure_ascii=False,indent=2);target.write_bytes(body.encode('utf-8'))
         with db:db.execute('INSERT OR IGNORE INTO plan(run_id,digest,body) VALUES ((SELECT max(id) FROM run),?,?)',(hashlib.sha256(body.encode()).hexdigest(),body))
         db.close();return str(target)
     if command in ('apply','rollback'):
@@ -92,6 +92,10 @@ def action(command,path,sandbox=None,out=None):
         latest=db.execute('SELECT max(id) FROM run').fetchone()[0]
         if not db.execute('SELECT 1 FROM plan WHERE digest=? AND body=? AND run_id=?',(plan_digest,body,latest)).fetchone():
             raise ValueError('plan_tampered_or_stale')
+        if command=='apply' and db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='capacity_window'").fetchone():
+            if db.execute('SELECT 1 FROM capacity_window LIMIT 1').fetchone():
+                if not lease or not db.execute("SELECT 1 FROM execution_lease WHERE id=? AND plan_digest=? AND state='active'",(lease,plan_digest)).fetchone():
+                    raise ValueError('active_lease_required')
         if not target.exists():
             if command=='rollback':raise ValueError('target_missing')
             shutil.copy2(_snapshot(cfg),target)
@@ -119,6 +123,9 @@ def action(command,path,sandbox=None,out=None):
                     state=item['new'] if command=='apply' else item['old']
                     db.execute('INSERT OR IGNORE INTO execution(run_id,subject,action,before_hash,after_state) VALUES ((SELECT max(id) FROM run),?,?,?,?)',(item['subject'],command,hashlib.sha256(json.dumps(item,sort_keys=True).encode()).hexdigest(),state))
         finally:con.close();db.close()
+        if command=='apply' and lease:
+            from .schedule import release
+            release(path,lease)
         return str(target)
     raise ValueError('unsupported_action')
 def verify_target(path,sandbox):

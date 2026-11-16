@@ -1,0 +1,1 @@
+{"contention":{"window_units":2,"first_lease_units":2,"second_lease_units":1},"conflict":{"new_evaluation_blocks_old_lease":true},"partial_failure":{"unapplied_target_status":"uncertain"}}
