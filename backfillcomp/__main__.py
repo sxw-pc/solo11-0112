@@ -11,7 +11,7 @@ def main():
     e=sub.add_parser('evaluate');e.add_argument('--db',required=True)
     r=sub.add_parser('report');r.add_argument('--db',required=True);r.add_argument('--out',required=True)
     v=sub.add_parser('verify');v.add_argument('--db',required=True);v.add_argument('--sandbox');v.add_argument('--out')
-    for name in ('plan','execute','recheck','apply','rollback'):
+    for name in ('plan','recheck','apply','rollback'):
         x=sub.add_parser(name);x.add_argument('--db',required=True);x.add_argument('--sandbox');x.add_argument('--out')
     a=p.parse_args()
     if a.command=='demo':

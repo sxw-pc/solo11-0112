@@ -77,18 +77,34 @@ def action(command,path,sandbox=None,out=None):
     if command in ('apply','rollback'):
         if not sandbox:raise ValueError('sandbox_required')
         root=Path(sandbox).resolve();root.mkdir(parents=True,exist_ok=True);target=root/'ledger.db'
-        if not target.exists():shutil.copy2(_snapshot(cfg),target)
+        if target.is_symlink():raise ValueError('unsafe_target_symlink')
         body=Path(out or 'backfill-plan.json').read_text(encoding='utf-8')
-        if not db.execute('SELECT 1 FROM plan WHERE digest=?',(hashlib.sha256(body.encode()).hexdigest(),)).fetchone():raise ValueError('plan_tampered')
+        plan_digest=hashlib.sha256(body.encode()).hexdigest()
+        latest=db.execute('SELECT max(id) FROM run').fetchone()[0]
+        if not db.execute('SELECT 1 FROM plan WHERE digest=? AND body=? AND run_id=?',(plan_digest,body,latest)).fetchone():
+            raise ValueError('plan_tampered_or_stale')
+        if not target.exists():
+            if command=='rollback':raise ValueError('target_missing')
+            shutil.copy2(_snapshot(cfg),target)
         plan=json.loads(body);con=sqlite3.connect(target)
         try:
             with con:
+                con.execute('CREATE TABLE IF NOT EXISTS backfill_audit(subject TEXT NOT NULL, plan_digest TEXT NOT NULL, state TEXT NOT NULL, before_value TEXT NOT NULL, after_value TEXT NOT NULL, PRIMARY KEY(subject,plan_digest))')
                 for item in (plan if command=='apply' else reversed(plan)):
                     expected=item['old'] if command=='apply' else item['new'];replacement=item['new'] if command=='apply' else item['old']
                     row=con.execute('SELECT amount,computed FROM ledger WHERE id=?',(item['subject'],)).fetchone()
                     if not row or row[0]!=item['amount'] or row[1] not in (expected,replacement):raise ValueError('optimistic_conflict')
+                    audit=con.execute('SELECT state FROM backfill_audit WHERE subject=? AND plan_digest=?',(item['subject'],plan_digest)).fetchone()
+                    if command=='rollback' and audit and audit[0]=='rolled_back' and row[1]==replacement:
+                        continue
+                    if command=='rollback' and (not audit or audit[0]!='applied'):
+                        raise ValueError('rollback_without_applied_plan')
+                    if command=='apply' and row[1]==replacement and (not audit or audit[0]!='applied'):
+                        raise ValueError('untracked_applied_value')
                     if row[1]==replacement:continue
                     con.execute('UPDATE ledger SET computed=? WHERE id=?',(replacement,item['subject']))
+                    con.execute('INSERT INTO backfill_audit(subject,plan_digest,state,before_value,after_value) VALUES (?,?,?,?,?) ON CONFLICT(subject,plan_digest) DO UPDATE SET state=excluded.state',
+                                (item['subject'],plan_digest,'applied' if command=='apply' else 'rolled_back',item['old'],item['new']))
             with db:
                 for item in plan:
                     state=item['new'] if command=='apply' else item['old']
@@ -100,9 +116,14 @@ def verify_target(path,sandbox):
     db=connect(path);target=Path(sandbox).resolve()/'ledger.db'
     if not target.exists():return [{'status':'不确定','reason':'target_missing'}]
     con=sqlite3.connect(target);results=[]
+    row=db.execute('SELECT digest FROM plan WHERE run_id=(SELECT max(id) FROM run) ORDER BY id DESC LIMIT 1').fetchone()
+    plan_digest=row['digest'] if row else None
+    has_audit=bool(con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='backfill_audit'").fetchone())
     for item in _plan(db):
         row=con.execute('SELECT computed FROM ledger WHERE id=?',(item['subject'],)).fetchone()
         value=row[0] if row else None
-        status='已应用' if value==item['new'] else ('未应用' if value==item['old'] else '不确定')
+        audit=con.execute('SELECT state FROM backfill_audit WHERE subject=? AND plan_digest=?',(item['subject'],plan_digest)).fetchone() if has_audit and plan_digest else None
+        status='已应用' if value==item['new'] and audit and audit[0]=='applied' else (
+            '未应用' if value==item['old'] and (not audit or audit[0]=='rolled_back') else '不确定')
         results.append({'subject':item['subject'],'status':status,'expected_old':item['old'],'expected_new':item['new'],'actual':value,'plan_digest':hashlib.sha256(json.dumps(item,sort_keys=True).encode()).hexdigest()})
     con.close();db.close();return results

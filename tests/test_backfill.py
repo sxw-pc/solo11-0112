@@ -54,8 +54,36 @@ def test_rollback_rejects_later_change(tmp_path):
 def test_plan_tamper_blocked(tmp_path):
     db=setup(tmp_path);evaluate(db);p=tmp_path/'p.json';action('plan',db,out=p);items=json.loads(p.read_text());items[0]['new']='999.00';p.write_text(json.dumps(items))
     with pytest.raises(ValueError,match='plan_tampered'):action('apply',db,sandbox=tmp_path/'sandbox',out=p)
+def test_stale_plan_cannot_apply_after_new_decision(tmp_path):
+    db=setup(tmp_path);evaluate(db);p=tmp_path/'p.json';action('plan',db,out=p)
+    evaluate(db)
+    with pytest.raises(ValueError,match='plan_tampered_or_stale'):
+        action('apply',db,sandbox=tmp_path/'sandbox',out=p)
+    assert not (tmp_path/'sandbox'/'ledger.db').exists()
+
+def test_rollback_requires_target_transaction_proof(tmp_path):
+    db=setup(tmp_path);evaluate(db);p=tmp_path/'p.json';action('plan',db,out=p)
+    target=tmp_path/'sandbox'/'ledger.db';target.parent.mkdir()
+    import shutil;shutil.copy2(FIX/'ledger.db',target)
+    with pytest.raises(ValueError,match='rollback_without_applied_plan'):
+        action('rollback',db,sandbox=target.parent,out=p)
+    assert sqlite3.connect(target).execute("SELECT computed FROM ledger WHERE id='r1'").fetchone()[0]=='10.00'
+    action('apply',db,sandbox=target.parent,out=p)
+    con=sqlite3.connect(target);assert con.execute("SELECT count(*) FROM backfill_audit WHERE state='applied'").fetchone()[0]==2;con.close()
+    action('rollback',db,sandbox=target.parent,out=p)
+    action('rollback',db,sandbox=target.parent,out=p)
 def test_verify_target_states(tmp_path):
     db=setup(tmp_path);evaluate(db);import shutil;root=tmp_path/'sandbox';root.mkdir();target=root/'ledger.db';shutil.copy2(FIX/'ledger.db',target)
     assert all(x['status']=='未应用' for x in verify_target(db,root))
     con=sqlite3.connect(target);con.execute("UPDATE ledger SET computed='99.00' WHERE id='r1'");con.commit();con.close()
     assert any(x['status']=='不确定' for x in verify_target(db,root))
+
+def test_matching_value_without_plan_audit_is_not_proof(tmp_path):
+    db=setup(tmp_path);evaluate(db);p=tmp_path/'p.json';action('plan',db,out=p)
+    import shutil;root=tmp_path/'sandbox';root.mkdir();target=root/'ledger.db';shutil.copy2(FIX/'ledger.db',target)
+    planned={x['subject']:x for x in json.loads(p.read_text(encoding='utf-8'))}
+    con=sqlite3.connect(target);con.execute('UPDATE ledger SET computed=? WHERE id=?',(planned['r1']['new'],'r1'));con.commit();con.close()
+    result={x['subject']:x['status'] for x in verify_target(db,root)}
+    assert result['r1']=='不确定'
+    with pytest.raises(ValueError,match='untracked_applied_value'):
+        action('apply',db,sandbox=root,out=p)
