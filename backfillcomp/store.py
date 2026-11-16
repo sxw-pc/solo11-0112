@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS evidence(id INTEGER PRIMARY KEY, run_id INTEGER NOT N
 CREATE TABLE IF NOT EXISTS decision(id INTEGER PRIMARY KEY, run_id INTEGER NOT NULL REFERENCES run(id), subject TEXT NOT NULL, status TEXT NOT NULL, detail TEXT NOT NULL, UNIQUE(run_id,subject));
 CREATE TABLE IF NOT EXISTS execution(id INTEGER PRIMARY KEY, run_id INTEGER REFERENCES run(id), subject TEXT NOT NULL, action TEXT NOT NULL, before_hash TEXT, after_state TEXT NOT NULL, at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(subject,action,before_hash));
 CREATE TABLE IF NOT EXISTS plan(id INTEGER PRIMARY KEY, run_id INTEGER NOT NULL REFERENCES run(id), digest TEXT NOT NULL UNIQUE, body TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS fiscal_calendar(id TEXT PRIMARY KEY,digest TEXT NOT NULL,raw BLOB NOT NULL);
+CREATE TABLE IF NOT EXISTS fiscal_period(calendar_id TEXT NOT NULL REFERENCES fiscal_calendar(id),period TEXT NOT NULL,state TEXT NOT NULL,closed_at TEXT,PRIMARY KEY(calendar_id,period));
 """
 def connect(path):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)

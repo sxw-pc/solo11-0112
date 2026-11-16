@@ -20,3 +20,7 @@
 
 每条补偿须有对应的规则修订来源事件；缺失或歧义时该行及依赖它的下游行进入待核，不能生成可执行计划。Evidence 绑定来源事件、文件与规则版本；`verify` 会从原始行重新核对事件和摘要。
 
+## 会计期间登记
+
+`fiscal-register --db DB --id CAL --file fixtures/fiscal-periods.json` 冻结本地会计期间开闭状态和关账时点，`fiscal-list --db DB --id CAL` 查看来源摘要。登记只保存财务时间边界，尚未改变补偿计划、执行或发布决定。
+

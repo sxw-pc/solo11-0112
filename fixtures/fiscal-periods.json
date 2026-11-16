@@ -1,0 +1,5 @@
+[
+  {"period":"2026-01","state":"closed","closed_at":"2026-03-01T00:00:00Z"},
+  {"period":"2026-02","state":"open","closed_at":null},
+  {"period":"2026-03","state":"open","closed_at":null}
+]

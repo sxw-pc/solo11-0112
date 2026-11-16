@@ -19,6 +19,8 @@ def main():
         x=sub.add_parser(name);x.add_argument('--db',required=True);x.add_argument('--id',required=True)
     pc=sub.add_parser('publication-check');pc.add_argument('--db',required=True);pc.add_argument('--target',required=True);pc.add_argument('--id',required=True);pc.add_argument('--consumer',required=True);pc.add_argument('--expected',required=True)
     pb=sub.add_parser('publish');pb.add_argument('--db',required=True);pb.add_argument('--target',required=True);pb.add_argument('--id',required=True)
+    fc=sub.add_parser('fiscal-register');fc.add_argument('--db',required=True);fc.add_argument('--id',required=True);fc.add_argument('--file',required=True)
+    fl=sub.add_parser('fiscal-list');fl.add_argument('--db',required=True);fl.add_argument('--id',required=True)
     a=p.parse_args()
     if a.command=='demo':
         work=Path(a.workdir or tempfile.mkdtemp(prefix='evidence-'));work.mkdir(parents=True,exist_ok=True);db=work/'ledger.db';fixture=Path(__file__).resolve().parent.parent/'fixtures'
@@ -55,5 +57,11 @@ def main():
     elif a.command=='publish':
         from .publish import publish
         print(publish(a.db,a.target,a.id))
+    elif a.command=='fiscal-register':
+        from .fiscal import register
+        print(register(a.db,a.id,a.file))
+    elif a.command=='fiscal-list':
+        from .fiscal import list_periods
+        print(list_periods(a.db,a.id))
     else:print(action(a.command,a.db,sandbox=getattr(a,'sandbox',None),out=getattr(a,'out',None),lease=getattr(a,'lease',None)))
 if __name__=='__main__':main()
