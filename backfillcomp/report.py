@@ -15,9 +15,30 @@ def export(db_path,out):
     db.close();return out
 def verify(db_path):
     db=connect(db_path);problems=[]
-    for s in db.execute('SELECT * FROM source_file'):
+    from .ingest import hash_bytes
+    for batch in db.execute('SELECT id,config_raw,config_hash FROM batch'):
+        if hash_bytes(batch['config_raw'])!=batch['config_hash']:
+            problems.append(f'batch_config:{batch["id"]}')
+    sources={s['id']:dict(s) for s in db.execute('SELECT * FROM source_file')}
+    for s in sources.values():
         from .ingest import hash_bytes
         if hash_bytes(s['raw'])!=s['digest']:problems.append(f'source:{s["id"]}')
+    events={e['id']:dict(e) for e in db.execute('SELECT * FROM raw_event')}
+    for e in events.values():
+        try:
+            lines=sources[e['source_id']]['raw'].decode('utf-8-sig').splitlines()
+            original=lines[e['line_no']-1]
+            if hash_bytes(original.encode('utf-8'))!=e['digest'] or json.loads(original)!=json.loads(e['payload']):
+                problems.append(f'event:{e["id"]}')
+        except (KeyError,IndexError,UnicodeError,ValueError):
+            problems.append(f'event:{e["id"]}')
+    for ev in db.execute('SELECT * FROM evidence WHERE event_id IS NOT NULL'):
+        source_event=events.get(ev['event_id'])
+        if not source_event or source_event['source_id']!=ev['source_id']:
+            problems.append(f'evidence:{ev["id"]}')
     for d in db.execute('SELECT * FROM decision'):
         if not db.execute('SELECT 1 FROM evidence WHERE run_id=? AND subject=?',(d['run_id'],d['subject'])).fetchone():problems.append(f'decision:{d["id"]}')
+        if db.execute('SELECT 1 FROM raw_event WHERE subject=?',(d['subject'],)).fetchone() and not db.execute(
+            'SELECT 1 FROM evidence WHERE run_id=? AND subject=? AND event_id IS NOT NULL',(d['run_id'],d['subject'])).fetchone():
+            problems.append(f'decision_source:{d["id"]}')
     db.close();return problems

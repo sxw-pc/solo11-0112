@@ -40,6 +40,16 @@ def test_downstream_delta_and_order(tmp_path):
 def test_missing_dependency_blocks(tmp_path):
     db=setup(tmp_path);con=connect(db);cfg=json.loads(con.execute('SELECT config_raw FROM batch').fetchone()[0]);cfg['dependencies']['r2']=['missing'];con.execute('UPDATE batch SET config_raw=?',(json.dumps(cfg).encode(),));con.commit();con.close()
     assert evaluate(db)['r2']=='待核'
+
+def test_correction_source_controls_plan_and_dependent_result(tmp_path):
+    db=setup(tmp_path);con=connect(db)
+    con.execute("DELETE FROM raw_event WHERE subject='r1'");con.commit();con.close()
+    result=evaluate(db)
+    assert result['r1']=='待核' and result['r2']=='待核'
+    plan=tmp_path/'p.json';action('plan',db,out=plan)
+    assert json.loads(plan.read_text(encoding='utf-8'))==[]
+    con=connect(db)
+    assert con.execute("SELECT 1 FROM issue WHERE subject='r1' AND code='correction_evidence_missing_or_ambiguous'").fetchone()
 def test_no_change_multiplier(tmp_path):
     db=setup(tmp_path);con=connect(db);cfg=json.loads(con.execute('SELECT config_raw FROM batch').fetchone()[0]);cfg['new_multiplier']='1.00';con.execute('UPDATE batch SET config_raw=?',(json.dumps(cfg).encode(),));con.commit();con.close()
     assert evaluate(db)['r1']=='不变'
@@ -87,3 +97,10 @@ def test_matching_value_without_plan_audit_is_not_proof(tmp_path):
     assert result['r1']=='不确定'
     with pytest.raises(ValueError,match='untracked_applied_value'):
         action('apply',db,sandbox=root,out=p)
+def test_independent_source_chain_rejects_rewritten_event(tmp_path):
+    db=setup(tmp_path);evaluate(db)
+    assert verify(db)==[]
+    con=connect(db)
+    con.execute("UPDATE raw_event SET payload='{}' WHERE id=(SELECT min(id) FROM raw_event)")
+    con.commit();con.close()
+    assert any(problem.startswith('event:') for problem in verify(db))

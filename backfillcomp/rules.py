@@ -10,8 +10,13 @@ def _money(value,multiplier):return str((Decimal(str(value))*Decimal(str(multipl
 def evaluate(path):
     db=connect(path);cfg=_cfg(db);source=sqlite3.connect(_snapshot(cfg));source.row_factory=sqlite3.Row
     rows={r['id']:dict(r) for r in source.execute('SELECT * FROM ledger')};source.close();result={};issues={};plans={}
+    correction_events={}
+    for event in db.execute("SELECT id,source_id,subject,payload FROM raw_event WHERE kind='correction'"):
+        correction_events.setdefault(event['subject'],[]).append(dict(event))
     for key,spec in cfg['subjects'].items():
         row=rows.get(key);codes=[]
+        corrections=[e for e in correction_events.get(key,[]) if json.loads(e['payload']).get('reason')=='rule_revision']
+        if len(corrections)!=1:codes.append('correction_evidence_missing_or_ambiguous')
         if not row:codes.append('missing_row')
         else:
             old=_money(row['amount'],cfg['old_multiplier'])
@@ -49,9 +54,13 @@ def evaluate(path):
     with db:
         rid=db.execute("INSERT INTO run(batch_id,status) VALUES (?, '已校验')",(cfg['batch_id'],)).lastrowid
         for key,status in result.items():
-            detail=json.dumps({'plan':plans.get(key),'issues':issues[key],'dependencies':graph.get(key,[])},ensure_ascii=False)
+            detail=json.dumps({'plan':plans.get(key),'issues':issues[key],'dependencies':graph.get(key,[]),
+                               'correction_event_ids':[e['id'] for e in correction_events.get(key,[])]},ensure_ascii=False)
             for code in issues[key]:db.execute('INSERT INTO issue(run_id,subject,code,detail) VALUES (?,?,?,?)',(rid,key,code,code))
             db.execute('INSERT INTO evidence(run_id,subject,rule_id,detail) VALUES (?,?,?,?)',(rid,key,cfg['rule_version'],detail))
+            for event in correction_events.get(key,[]):
+                db.execute('INSERT INTO evidence(run_id,subject,source_id,event_id,rule_id,detail) VALUES (?,?,?,?,?,?)',
+                           (rid,key,event['source_id'],event['id'],cfg['rule_version'],'correction_source'))
             db.execute('INSERT INTO decision(run_id,subject,status,detail) VALUES (?,?,?,?)',(rid,key,status,detail))
         db.execute("UPDATE run SET status=CASE WHEN EXISTS(SELECT 1 FROM decision WHERE run_id=? AND status='待核') THEN '待核' ELSE '已判定' END,ended_at=CURRENT_TIMESTAMP WHERE id=?",(rid,rid))
     db.close();return result
