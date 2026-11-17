@@ -94,8 +94,10 @@ def action(command,path,sandbox=None,out=None,lease=None):
             raise ValueError('plan_tampered_or_stale')
         if command=='apply' and db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='capacity_window'").fetchone():
             if db.execute('SELECT 1 FROM capacity_window LIMIT 1').fetchone():
-                if not lease or not db.execute("SELECT 1 FROM execution_lease WHERE id=? AND plan_digest=? AND state='active'",(lease,plan_digest)).fetchone():
-                    raise ValueError('active_lease_required')
+                # Keep the control-db handle from being held open while the
+                # lease gate opens its own write transaction.
+                from .schedule import check_active_lease
+                check_active_lease(path,lease,plan_digest)
         if not target.exists():
             if command=='rollback':raise ValueError('target_missing')
             shutil.copy2(_snapshot(cfg),target)
