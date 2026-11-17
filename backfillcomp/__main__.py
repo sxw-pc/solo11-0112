@@ -10,6 +10,7 @@ def main():
     l=sub.add_parser('load');l.add_argument('--db',required=True);l.add_argument('path')
     e=sub.add_parser('evaluate');e.add_argument('--db',required=True)
     r=sub.add_parser('report');r.add_argument('--db',required=True);r.add_argument('--out',required=True)
+    c=sub.add_parser('contracts');c.add_argument('--db',required=True)
     v=sub.add_parser('verify');v.add_argument('--db',required=True);v.add_argument('--sandbox');v.add_argument('--out')
     for name in ('plan','recheck','apply','rollback'):
         x=sub.add_parser(name);x.add_argument('--db',required=True);x.add_argument('--sandbox');x.add_argument('--out');x.add_argument('--lease')
@@ -27,6 +28,10 @@ def main():
     elif a.command=='load':print(load(a.db,a.path))
     elif a.command=='evaluate':print(evaluate(a.db))
     elif a.command=='report':print(export(a.db,a.out))
+    elif a.command=='contracts':
+        import json
+        from .report import contracts_state
+        print(json.dumps(contracts_state(a.db),ensure_ascii=False,indent=2))
     elif a.command=='verify':
         from . import rules
         checks=verify(a.db)
