@@ -54,7 +54,13 @@ def check(db_path,target,gate_id,consumer,expected):
     if old:
         if (old['consumer'],old['run_id'],old['plan_digest'],old['expected_hash'])!=(consumer,run,plan_row['digest'],expected_hash):
             raise ValueError('gate_identity_conflict')
-        return dict(old)
+        # 已发布是不可无声推翻的事实，保持原样；其余状态必须随目标值/backfill_audit
+        # 的变化（如恢复回退把 applied 改为 rolled_back）重新裁定。
+        if old['status']=='published':return dict(old)
+        with db:
+            db.execute('UPDATE publication_gate SET target_hash=?,status=?,detail=? WHERE id=?',
+                       (target_hash,status,json.dumps(problems),gate_id))
+        return {'gate':gate_id,'status':status,'problems':problems}
     with db:
         db.execute('INSERT INTO publication_gate VALUES (?,?,?,?,?,?,?,?)',
                    (gate_id,consumer,run,plan_row['digest'],target_hash,expected_hash,status,json.dumps(problems)))

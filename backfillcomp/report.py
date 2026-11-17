@@ -1,6 +1,34 @@
 import json
 from pathlib import Path
 from .store import connect
+def repair_report(db_path,out=None):
+    """展示目标与控制两侧证据、恢复路线、每行最终状态及阻断原因。"""
+    db=connect(db_path)
+    cases=[dict(x) for x in db.execute('SELECT * FROM repair_case ORDER BY created_at,id')]
+    for case in cases:
+        case['evidence']=json.loads(case['evidence'])
+        case['blockers']=json.loads(case['blockers'])
+        case['rows']=[dict(x) for x in db.execute(
+            'SELECT * FROM repair_row WHERE case_id=? ORDER BY subject',(case['id'],))]
+    db.close()
+    data={'repair_cases':cases}
+    if out:
+        out=Path(out);out.parent.mkdir(parents=True,exist_ok=True)
+        out.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding='utf-8')
+        lines=['# 中断恢复裁定报告','']
+        for case in cases:
+            ev=case['evidence']
+            lines += [f"## 案例 {case['id']}：{case['status']}",
+                      f"- 计划摘要：{case['plan_digest'][:12]}…，run {case['run_id']}，证据哈希 {case['evidence_hash'][:12]}…",
+                      f"- 目标库：{ev['target_path']}，冻结于 {ev['frozen_at']}",
+                      f"- 可选路线：{ev['routes']}，选定路线：{case['route'] or '未选择'}",
+                      f"- 阻断原因：{case['blockers'] or '无'}",
+                      '- 逐行最终状态：']
+            for row in case['rows']:
+                lines.append(f"  - {row['subject']}：{row['row_state']}，实际 {row['actual_value']}，审计 {row['audit_state']}（期望 {row['expected_old']} → {row['expected_new']}）")
+            lines.append('')
+        out.with_suffix('.md').write_text('\n'.join(lines),encoding='utf-8')
+    return data
 def export(db_path,out):
     db=connect(db_path);out=Path(out);out.parent.mkdir(parents=True,exist_ok=True)
     run=db.execute('SELECT * FROM run ORDER BY id DESC LIMIT 1').fetchone()

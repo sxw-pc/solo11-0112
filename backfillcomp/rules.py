@@ -2,6 +2,10 @@ import json,hashlib,sqlite3,shutil
 from decimal import Decimal,ROUND_HALF_UP
 from pathlib import Path
 from .store import connect
+
+# 故障注入点：在目标库事务提交之后、控制库 execution 事务提交之前调用；
+# 测试用它精确制造“目标已 applied、控制库无 execution、租约仍 active”的中断现场。
+_fault_between_commits=None
 def _cfg(db):return json.loads(db.execute('SELECT config_raw FROM batch LIMIT 1').fetchone()[0])
 def _snapshot(cfg=None):
     if cfg and cfg.get('snapshot_path'):return Path(cfg['snapshot_path']).resolve()
@@ -118,6 +122,8 @@ def action(command,path,sandbox=None,out=None,lease=None):
                     con.execute('UPDATE ledger SET computed=? WHERE id=?',(replacement,item['subject']))
                     con.execute('INSERT INTO backfill_audit(subject,plan_digest,state,before_value,after_value) VALUES (?,?,?,?,?) ON CONFLICT(subject,plan_digest) DO UPDATE SET state=excluded.state',
                                 (item['subject'],plan_digest,'applied' if command=='apply' else 'rolled_back',item['old'],item['new']))
+            if command=='apply' and _fault_between_commits is not None:
+                _fault_between_commits()
             with db:
                 for item in plan:
                     state=item['new'] if command=='apply' else item['old']

@@ -76,18 +76,23 @@ def activate(db_path, lease_id):
         db.execute("UPDATE execution_lease SET state='active' WHERE id=?",(lease_id,))
     db.close();return {'lease':lease_id,'state':'active'}
 
+def _release_conn(db,row):
+    """在调用方事务内释放一条 active/reserved 租约并提升 waiting 候选；返回提升的租约 id。"""
+    db.execute("UPDATE execution_lease SET state='released' WHERE id=?",(row['id'],))
+    waiting=db.execute("SELECT * FROM execution_lease WHERE window_id=? AND state='waiting' ORDER BY id",(row['window_id'],)).fetchall()
+    cap=db.execute('SELECT units FROM capacity_window WHERE id=?',(row['window_id'],)).fetchone()[0]
+    used=db.execute("SELECT COALESCE(sum(units),0) FROM execution_lease WHERE window_id=? AND state IN ('reserved','active')",(row['window_id'],)).fetchone()[0]
+    promoted=[]
+    for candidate in waiting:
+        if used+candidate['units']<=cap:
+            db.execute("UPDATE execution_lease SET state='reserved' WHERE id=?",(candidate['id'],))
+            used+=candidate['units'];promoted.append(candidate['id'])
+    return promoted
+
 def release(db_path,lease_id):
     db=connect(db_path);db.executescript(SCHEMA)
     with db:
         row=db.execute('SELECT * FROM execution_lease WHERE id=?',(lease_id,)).fetchone()
         if not row or row['state'] not in ('active','reserved'):raise ValueError('lease_not_releasable')
-        db.execute("UPDATE execution_lease SET state='released' WHERE id=?",(lease_id,))
-        waiting=db.execute("SELECT * FROM execution_lease WHERE window_id=? AND state='waiting' ORDER BY id",(row['window_id'],)).fetchall()
-        cap=db.execute('SELECT units FROM capacity_window WHERE id=?',(row['window_id'],)).fetchone()[0]
-        used=db.execute("SELECT COALESCE(sum(units),0) FROM execution_lease WHERE window_id=? AND state IN ('reserved','active')",(row['window_id'],)).fetchone()[0]
-        promoted=[]
-        for candidate in waiting:
-            if used+candidate['units']<=cap:
-                db.execute("UPDATE execution_lease SET state='reserved' WHERE id=?",(candidate['id'],))
-                used+=candidate['units'];promoted.append(candidate['id'])
+        promoted=_release_conn(db,row)
     db.close();return {'lease':lease_id,'state':'released','promoted':promoted}
