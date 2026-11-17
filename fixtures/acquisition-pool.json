@@ -1,0 +1,13 @@
+{
+  "pool_id": "acq-P1",
+  "batch_id": "acquisition-demo",
+  "weights": {"a": 1, "b": 1, "c": 1, "d": 1, "e": 10},
+  "files": [
+    {"id": "F1", "path": "acquisition-f1.jsonl", "cost": 2},
+    {"id": "F2", "path": "acquisition-f2.jsonl", "cost": 3},
+    {"id": "F3", "path": "acquisition-f3.jsonl", "cost": 2},
+    {"id": "F4", "path": "acquisition-f4.jsonl", "cost": 2},
+    {"id": "F5", "path": "acquisition-f5.jsonl", "cost": 4},
+    {"id": "F6", "path": "acquisition-f6.jsonl", "cost": 4}
+  ]
+}

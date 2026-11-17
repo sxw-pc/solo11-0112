@@ -3,6 +3,7 @@ __pycache__/
 *.egg-info/
 *.db
 !fixtures/ledger.db
+!fixtures/acquisition-ledger.db
 out/
 build/
 .venv/

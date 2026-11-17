@@ -1,5 +1,7 @@
 # 回填补偿编排台
 
+合成候选修订文件的取证池可用 `acquisition-pool` 冻结文件原字节及取得成本，`acquisition-manual` 会在临时控制库内真正重放候选文件进入现有 `ingest.load → rules.evaluate` 链并计量人工选集的可核主体；尚不自动选择取证清单。示例：`python -m backfillcomp init --db acq.db --config fixtures/acquisition-config.json`，`python -m backfillcomp load --db acq.db fixtures/acquisition-base.jsonl`，然后运行 `python -m backfillcomp acquisition-pool --db acq.db --input fixtures/acquisition-pool.json` 与 `python -m backfillcomp acquisition-manual --db acq.db --input fixtures/acquisition-manual.json`。仅用本地合成资料与沙箱，不执行外部采购或接触真实主体。
+
 完全离线，输入与主体均为合成数据。`python -m pip install . --no-build-isolation` 安装；`python -m backfillcomp demo` 一条命令初始化 SQLite、导入 fixture、计算、生成 JSON/Markdown；`python -m pytest -q` 测试。
 
 数据流：SourceFile 原始字节及哈希 → RawEvent → Subject 与 RuleVersion → Run 内的 Decision、Evidence、Issue → 报告；身份冲突和坏行保留为 Issue。相同文件哈希与事件键幂等。
