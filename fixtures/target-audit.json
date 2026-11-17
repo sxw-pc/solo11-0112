@@ -1,0 +1,1 @@
+{"population_size":10,"draw_count":8,"draw_seed":"audit-33","design":"uniform_without_replacement","confidence":"0.95","error_limit":"0.15","allowed_metrics":["row_error_rate","value_weighted_error_rate"],"manual_reviews":{"r1":"correct","r2":"correct","r3":"correct","r4":"correct","r5":"correct","r6":"correct","r7":"correct","r8":"correct"}}
