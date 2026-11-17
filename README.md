@@ -1,5 +1,7 @@
 # 回填补偿编排台
 
+合成回填计算作业的共享计量表可用 `energy-record` 登记带复位证明的读数、活跃作业集合、联合作业校准和逐槽电网强度；`energy-summary` 仅恢复逐槽总 Wh 与总排放量，尚不把并发区间归属给各作业。示例：`python -m backfillcomp init --db ledger.db --config fixtures/config.json`，然后 `python -m backfillcomp energy-record --db ledger.db --input fixtures/energy-meter.json`，最后 `python -m backfillcomp energy-summary --db ledger.db --id meter-S1`。本地合成计量不会访问真实电表。
+
 完全离线，输入与主体均为合成数据。`python -m pip install . --no-build-isolation` 安装；`python -m backfillcomp demo` 一条命令初始化 SQLite、导入 fixture、计算、生成 JSON/Markdown；`python -m pytest -q` 测试。
 
 数据流：SourceFile 原始字节及哈希 → RawEvent → Subject 与 RuleVersion → Run 内的 Decision、Evidence、Issue → 报告；身份冲突和坏行保留为 Issue。相同文件哈希与事件键幂等。
