@@ -14,6 +14,12 @@
 
 `publication-check --db DB --target TARGET.db --id G --consumer consumer-A --expected fixtures/consumer-expected.json` 把消费者的期望结果和目标值、目标审计逐行核对，产生 `ready`、`blocked` 或 `uncertain`；`publish` 在提交时再次核验目标和最新运行。目标行被改写使已准备的发布变为 `stale`。`fixtures/scheduling-cases.json` 包含竞争、旧计划和部分执行场景。容量与发布各有独立持久化记录，且执行状态直接影响发布结论。
 
+## 多消费方发布协定
+
+`accord-prepare --db DB --target TARGET.db --contract CONTRACT.json [--id ACC] [--version N]` 声明消费方集合、各成员 scope 与 expected、共享计划摘要、目标快照与协定版本。准备时冻结成员、`member_digest`/`expected_digest` 与目标快照 `target_hash`，并立即裁定每方 readiness 与可发布组。`accord-recheck` 在规则或目标状态改变后重新裁定；`accord-publish [--consumers A,B]` 提交前再次核验运行、计划摘要和目标哈希，旧 `ready` 不被当作当前事实；`accord-status`/`accord-list` 查看，`accord-versions` 给出各消费方已发布版本，`accord-rejections` 留下拒绝原因。
+
+合同 `route` 只能取两种：`atomic` 要求全部成员 ready 才整体 `published`；`partitioned` 仅允许无共享主体、无依赖关系的独立成员分别发布，共享主体或下游依赖的成员合并为一组共同裁定。示例：A 订阅 X、B 与 C 订阅 Y 且 C 依赖 B，B 因目标审计缺口 `uncertain` 时，`atomic` 任何成员都不发布；`partitioned` 仅 A 发布，B、C 因共享范围与依赖同组阻断，绝不会出现 C 单独发布造成的混合版本。协定准备后成员与快照不可改写（`accord_member_frozen`/`accord_snapshot_frozen` 等触发器），新合同版本只能以新记录（`ACC:v2`）建立，历史版本原样保留。`report` 输出 `publication.consumers`，标出同一消费方已发布快照是否一致。
+
 ## 补偿与回退证据
 
 `plan` 保存最新决策运行对应的计划摘要。`apply` 只接受该运行的未改动计划，先核目标行的业务原值与计算值，再在目标 SQLite 同一事务中写账本与 `backfill_audit`。重复执行需要目标审计证明；仅仅看到目标值碰巧等于新值不算已执行。`rollback` 必须找到同一计划的已应用目标审计记录，拒绝未执行计划的回退或被后续改写的目标；重复回退不会再次改账。`verify --sandbox` 同时读取目标值与目标审计，没有审计而值相等时判不确定。控制库与目标库是两个 SQLite 文件，跨库事务原子性尚未实现；异常中断后应先运行 `verify`，不能仅依赖控制库的执行记录。

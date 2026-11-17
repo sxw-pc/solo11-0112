@@ -1,0 +1,10 @@
+{
+  "accord_id": "demo-accord",
+  "route": "partitioned",
+  "version": 1,
+  "members": [
+    {"consumer": "consumer-A", "scope": ["r1"], "expected": {"r1": "11.00"}},
+    {"consumer": "consumer-B", "scope": ["r2"], "expected": {"r2": "23.00"}}
+  ],
+  "dependencies": {"consumer-B": ["consumer-A"]}
+}

@@ -19,10 +19,25 @@ def main():
         x=sub.add_parser(name);x.add_argument('--db',required=True);x.add_argument('--id',required=True)
     pc=sub.add_parser('publication-check');pc.add_argument('--db',required=True);pc.add_argument('--target',required=True);pc.add_argument('--id',required=True);pc.add_argument('--consumer',required=True);pc.add_argument('--expected',required=True)
     pb=sub.add_parser('publish');pb.add_argument('--db',required=True);pb.add_argument('--target',required=True);pb.add_argument('--id',required=True)
+    ac=sub.add_parser('accord-prepare');ac.add_argument('--db',required=True);ac.add_argument('--target',required=True);ac.add_argument('--contract',required=True);ac.add_argument('--id');ac.add_argument('--version',type=int)
+    ar=sub.add_parser('accord-recheck');ar.add_argument('--db',required=True);ar.add_argument('--target',required=True);ar.add_argument('--id',required=True);ar.add_argument('--version',type=int)
+    ap=sub.add_parser('accord-publish');ap.add_argument('--db',required=True);ap.add_argument('--target',required=True);ap.add_argument('--id',required=True);ap.add_argument('--version',type=int);ap.add_argument('--consumers')
+    ast=sub.add_parser('accord-status');ast.add_argument('--db',required=True);ast.add_argument('--id',required=True);ast.add_argument('--version',type=int)
+    al=sub.add_parser('accord-list');al.add_argument('--db',required=True);al.add_argument('--id')
+    av=sub.add_parser('accord-versions');av.add_argument('--db',required=True)
+    arj=sub.add_parser('accord-rejections');arj.add_argument('--db',required=True);arj.add_argument('--id')
     a=p.parse_args()
     if a.command=='demo':
         work=Path(a.workdir or tempfile.mkdtemp(prefix='evidence-'));work.mkdir(parents=True,exist_ok=True);db=work/'ledger.db';fixture=Path(__file__).resolve().parent.parent/'fixtures'
-        initialize(db,fixture/'config.json');load(db,fixture/'events.jsonl');print(evaluate(db));print(export(db,work/'report.json'))
+        initialize(db,fixture/'config.json');load(db,fixture/'events.jsonl');print(evaluate(db))
+        plan=work/'plan.json';action('plan',db,out=plan);target=Path(action('apply',db,sandbox=work/'target',out=plan))
+        from .publish import prepare_accord,publish_accord
+        import json as _json
+        accord=prepare_accord(db,target,_json.loads((fixture/'accord-contract.json').read_text(encoding='utf-8')))
+        print({'accord':accord['accord_id'],'version':accord['version'],'state':accord['state'],
+               'members':{m['consumer']:m['readiness'] for m in accord['members']}})
+        print({'published':publish_accord(db,target,accord['accord_id'],accord['version'])['status']})
+        print(export(db,work/'report.json'))
     elif a.command=='init':print(initialize(a.db,a.config))
     elif a.command=='load':print(load(a.db,a.path))
     elif a.command=='evaluate':print(evaluate(a.db))
@@ -55,5 +70,29 @@ def main():
     elif a.command=='publish':
         from .publish import publish
         print(publish(a.db,a.target,a.id))
+    elif a.command=='accord-prepare':
+        import json
+        from .publish import prepare_accord
+        contract=json.loads(Path(a.contract).read_text(encoding='utf-8'))
+        print(prepare_accord(a.db,a.target,contract,accord_id=a.id,version=a.version))
+    elif a.command=='accord-recheck':
+        from .publish import recheck_accord
+        print(recheck_accord(a.db,a.target,a.id,a.version))
+    elif a.command=='accord-publish':
+        from .publish import publish_accord
+        consumers=[x.strip() for x in a.consumers.split(',') if x.strip()] if a.consumers else None
+        print(publish_accord(a.db,a.target,a.id,a.version,consumers))
+    elif a.command=='accord-status':
+        from .publish import accord_status
+        print(accord_status(a.db,a.id,a.version))
+    elif a.command=='accord-list':
+        from .publish import list_accords
+        print(list_accords(a.db,a.id))
+    elif a.command=='accord-versions':
+        from .publish import consumer_versions
+        print(consumer_versions(a.db))
+    elif a.command=='accord-rejections':
+        from .publish import rejections
+        print(rejections(a.db,a.id))
     else:print(action(a.command,a.db,sandbox=getattr(a,'sandbox',None),out=getattr(a,'out',None),lease=getattr(a,'lease',None)))
 if __name__=='__main__':main()

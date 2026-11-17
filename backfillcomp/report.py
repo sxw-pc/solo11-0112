@@ -1,6 +1,52 @@
 import json
 from pathlib import Path
 from .store import connect
+def _accord_report(db):
+    """Published version per consumer plus cross-consumer consistency."""
+    rows=db.execute('''SELECT m.consumer,m.published_at,m.published_target_hash,m.readiness,
+                              a.accord_id,a.version,a.route,a.state,g.status AS group_status,
+                              g.group_key AS group_key
+                       FROM accord_member m JOIN publication_accord a USING(accord_key)
+                       LEFT JOIN accord_group g ON g.accord_key=m.accord_key
+                            AND instr(g.members,'"'||m.consumer||'"')>0
+                       ORDER BY a.accord_id,a.version,m.consumer''').fetchall()
+    consumers={}
+    for row in rows:
+        item=consumers.setdefault(row['consumer'],{'consumer':row['consumer'],'published':[],
+                                                   'groups':[],'readiness':row['readiness']})
+        item['readiness']=row['readiness']
+        item['groups'].append({'accord_id':row['accord_id'],'version':row['version'],
+                               'group':row['group_key'],'status':row['group_status']})
+        if row['published_at']:
+            item['published'].append({'accord_id':row['accord_id'],'version':row['version'],
+                                      'route':row['route'],'state':row['state'],
+                                      'group_status':row['group_status'],
+                                      'target_hash':row['published_target_hash']})
+    result=[]
+    for consumer in sorted(consumers):
+        entry=consumers[consumer]
+        hashes={x['target_hash'] for x in entry['published']}
+        entry['published_target_hashes']=sorted(hashes)
+        entry['consistent']=len(hashes)<=1
+        entry['reason']=None if len(hashes)<=1 else 'mixed_target_snapshots'
+        # Group-level adjudication determines whether the consumer's whole
+        # contract is out, even when some earlier version already shipped.
+        entry['fully_published']=all(g['status']=='published' for g in entry['groups']) and bool(entry['groups'])
+        entry['blocked_groups']=[g for g in entry['groups'] if g['status']!='published']
+        result.append(entry)
+    accords=[]
+    for row in db.execute('SELECT accord_id,version,route,state,target_hash FROM publication_accord ORDER BY accord_id,version'):
+        accords.append({'accord_id':row['accord_id'],'version':row['version'],'route':row['route'],
+                        'state':row['state'],'target_hash':row['target_hash'],
+                        'groups':[{'group':g['group_key'],'members':json.loads(g['members']),
+                                   'status':g['status']}
+                                  for g in db.execute('SELECT * FROM accord_group WHERE accord_key=? ORDER BY group_key',
+                                                      (f'{row["accord_id"]}:v{row["version"]}',))],
+                        'members':[{'consumer':m['consumer'],'readiness':m['readiness'],
+                                    'published':bool(m['published_at'])}
+                                   for m in db.execute('SELECT * FROM accord_member WHERE accord_key=? ORDER BY consumer',
+                                                       (f'{row["accord_id"]}:v{row["version"]}',))]})
+    return {'consumers':result,'accords':accords}
 def export(db_path,out):
     db=connect(db_path);out=Path(out);out.parent.mkdir(parents=True,exist_ok=True)
     run=db.execute('SELECT * FROM run ORDER BY id DESC LIMIT 1').fetchone()
@@ -10,8 +56,13 @@ def export(db_path,out):
       'issues':[dict(x) for x in db.execute('SELECT * FROM issue WHERE run_id=? OR run_id IS NULL ORDER BY id',(rid,))],
       'evidence':[dict(x) for x in db.execute('SELECT * FROM evidence WHERE run_id=? ORDER BY id',(rid,))]}
     data['executions']=[dict(x) for x in db.execute('SELECT * FROM execution ORDER BY id')]
+    data['publication']=_accord_report(db)
     out.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding='utf-8')
-    md=out.with_suffix('.md');md.write_text('# 离线判定报告\n\n'+f'运行 {rid}：{run["status"]}\n\n'+'\n'.join(f'- {x["subject"]}: {x["status"]}，{x["detail"]}' for x in data['decisions']),encoding='utf-8')
+    md=out.with_suffix('.md');md.write_text('# 离线判定报告\n\n'+f'运行 {rid}：{run["status"]}\n\n'+'\n'.join(f'- {x["subject"]}: {x["status"]}，{x["detail"]}' for x in data['decisions'])
+        +'\n\n## 消费方发布\n\n'+'\n'.join(
+            f'- {x["consumer"]}: readiness {x["readiness"]}，'+
+            (f'一致（{len(x["published_target_hashes"])} 个快照）' if x['consistent'] else f'版本不一致（{x["reason"]}）')
+            for x in data['publication']['consumers']),encoding='utf-8')
     db.close();return out
 def verify(db_path):
     db=connect(db_path);problems=[]
