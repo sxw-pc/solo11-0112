@@ -7,6 +7,8 @@ def main():
     p=argparse.ArgumentParser(description='离线证据判定工具');sub=p.add_subparsers(dest='command',required=True)
     d=sub.add_parser('demo');d.add_argument('--workdir')
     i=sub.add_parser('init');i.add_argument('--db',required=True);i.add_argument('--config',required=True)
+    cp=sub.add_parser('causality-pair');cp.add_argument('--db',required=True);cp.add_argument('--id',required=True);cp.add_argument('--baseline',required=True,type=int);cp.add_argument('--comparison',required=True,type=int);cp.add_argument('--subject',required=True)
+    cm=sub.add_parser('causality-manual');cm.add_argument('--db',required=True);cm.add_argument('--id',required=True)
     l=sub.add_parser('load');l.add_argument('--db',required=True);l.add_argument('path')
     e=sub.add_parser('evaluate');e.add_argument('--db',required=True)
     r=sub.add_parser('report');r.add_argument('--db',required=True);r.add_argument('--out',required=True)
@@ -24,6 +26,12 @@ def main():
         work=Path(a.workdir or tempfile.mkdtemp(prefix='evidence-'));work.mkdir(parents=True,exist_ok=True);db=work/'ledger.db';fixture=Path(__file__).resolve().parent.parent/'fixtures'
         initialize(db,fixture/'config.json');load(db,fixture/'events.jsonl');print(evaluate(db));print(export(db,work/'report.json'))
     elif a.command=='init':print(initialize(a.db,a.config))
+    elif a.command=='causality-pair':
+        from .causality import record_pair
+        print(record_pair(a.db,a.id,a.baseline,a.comparison,a.subject))
+    elif a.command=='causality-manual':
+        from .causality import manual_diff
+        print(manual_diff(a.db,a.id))
     elif a.command=='load':print(load(a.db,a.path))
     elif a.command=='evaluate':print(evaluate(a.db))
     elif a.command=='report':print(export(a.db,a.out))
