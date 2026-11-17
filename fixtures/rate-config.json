@@ -1,0 +1,1 @@
+{"batch_id":"rate-risk-demo","rule_version":"v2","old_multiplier":"1.00","new_multiplier":"1.10","ranges":["2030-06"],"subjects":{"r1":{"partition":"2030-06"},"r2":{"partition":"2030-06"}},"dependencies":{"r2":["r1"]}}

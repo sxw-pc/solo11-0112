@@ -1,0 +1,1 @@
+{"subjects":["r1","r2"],"rate_bounds":{"r1":["1.05","1.15"],"r2":["1.05","1.15"]},"nominal_rate":"1.10","models":["shared_rate","balanced_calibration"],"balanced_sum":"2.20","funding_ceiling":"240.00"}
