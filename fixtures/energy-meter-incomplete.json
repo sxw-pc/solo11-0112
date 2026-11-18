@@ -1,0 +1,20 @@
+{
+  "source_id": "meter-incomplete",
+  "batch_id": "backfill-demo",
+  "unit": "Wh integer; gCO2e per kWh project-local synthetic factor",
+  "jobs": [
+    {"id": "A", "worker": "worker-A"},
+    {"id": "B", "worker": "worker-B"}
+  ],
+  "boundaries": [
+    {"id": "T0", "reading_wh": 1000},
+    {"id": "T1", "reading_wh": 3000},
+    {"id": "T2", "reading_wh": 8000}
+  ],
+  "resets": [],
+  "slots": [
+    {"id": "S1", "active_jobs": ["A"], "intensity_g_per_kwh": 100},
+    {"id": "S2", "active_jobs": ["A", "B"], "intensity_g_per_kwh": 100}
+  ],
+  "coalition_calibration_wh": {"": 1000, "A": 2000}
+}

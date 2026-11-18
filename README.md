@@ -1,6 +1,10 @@
 # 回填补偿编排台
 
-合成回填计算作业的共享计量表可用 `energy-record` 登记带复位证明的读数、活跃作业集合、联合作业校准和逐槽电网强度；`energy-summary` 仅恢复逐槽总 Wh 与总排放量，尚不把并发区间归属给各作业。示例：`python -m backfillcomp init --db ledger.db --config fixtures/config.json`，然后 `python -m backfillcomp energy-record --db ledger.db --input fixtures/energy-meter.json`，最后 `python -m backfillcomp energy-summary --db ledger.db --id meter-S1`。本地合成计量不会访问真实电表。
+合成回填计算作业的共享计量表可用 `energy-record` 登记带复位证明的读数、活跃作业集合、联合作业校准和逐槽电网强度；`energy-summary` 仅恢复逐槽总 Wh 与总排放量。示例：`python -m backfillcomp init --db ledger.db --config fixtures/config.json`，然后 `python -m backfillcomp energy-record --db ledger.db --input fixtures/energy-meter.json`，最后 `python -m backfillcomp energy-summary --db ledger.db --id meter-S1`。本地合成计量不会访问真实电表。
+
+## 逐作业能源与排放归属
+
+`energy-attribute --db DB --id meter-S1 --contract direct_platform_overhead` 在冻结来源版本上按相邻边界读数重建每个半开时槽的非负 Wh（计数器复位须凭该边界 old/new 的独立证明衔接，读数回落不算负耗能、不猜测复位次数），再按事先批准的归属合同把并发耗能分给各作业与平台。`direct_platform_overhead` 由平台承担空闲校准 E(∅) 与非线性共享剩余（剩余为负则待核，不硬造负平台耗能），每个作业只承担单独增量；`shapley_shared_overhead` 平台只承担 E(∅)，作业对 v(S)=E(S)−E(∅) 按全部子联盟的精确 Shapley 边际贡献分摊（最多四个同时活跃作业，使用阶乘权重）。校准须含空集与活跃集合的全部子集、随集合扩大不下降、且与观测槽 Wh 一致；缺校准、复位身份冲突、计量断点、活跃集不匹配或强度缺失一律待核，不分摊猜测数字。每槽以精确有理数 Wh 按该槽 gCO2e/kWh 换算，各作业与平台每槽及全期之和严格等于计量总 Wh/g。归属账写盘后不可回写：同 source_id 同字节重放幂等、异文冲突，新读数或校准只生成新归属版本。`energy-verify --db DB` 从冻结原始读数、复位事件、活跃集合、联盟校准和强度独立复算所有 Wh/g，发现漏掉复位、交换作业份额、篡改平台剩余或用错槽强度。
 
 完全离线，输入与主体均为合成数据。`python -m pip install . --no-build-isolation` 安装；`python -m backfillcomp demo` 一条命令初始化 SQLite、导入 fixture、计算、生成 JSON/Markdown；`python -m pytest -q` 测试。
 

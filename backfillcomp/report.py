@@ -1,4 +1,4 @@
-import json
+import json,sqlite3
 from pathlib import Path
 from .store import connect
 def export(db_path,out):
@@ -10,6 +10,10 @@ def export(db_path,out):
       'issues':[dict(x) for x in db.execute('SELECT * FROM issue WHERE run_id=? OR run_id IS NULL ORDER BY id',(rid,))],
       'evidence':[dict(x) for x in db.execute('SELECT * FROM evidence WHERE run_id=? ORDER BY id',(rid,))]}
     data['executions']=[dict(x) for x in db.execute('SELECT * FROM execution ORDER BY id')]
+    try:
+        data['energy_attributions']=[dict(x) for x in db.execute('SELECT source_id,contract,version,status,digest,created_at FROM energy_attribution ORDER BY source_id,contract,version')]
+    except sqlite3.OperationalError:
+        data['energy_attributions']=[]
     out.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding='utf-8')
     md=out.with_suffix('.md');md.write_text('# 离线判定报告\n\n'+f'运行 {rid}：{run["status"]}\n\n'+'\n'.join(f'- {x["subject"]}: {x["status"]}，{x["detail"]}' for x in data['decisions']),encoding='utf-8')
     db.close();return out

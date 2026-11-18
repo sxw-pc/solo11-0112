@@ -9,6 +9,8 @@ def main():
     i=sub.add_parser('init');i.add_argument('--db',required=True);i.add_argument('--config',required=True)
     er=sub.add_parser('energy-record');er.add_argument('--db',required=True);er.add_argument('--input',required=True)
     es=sub.add_parser('energy-summary');es.add_argument('--db',required=True);es.add_argument('--id',required=True)
+    ea=sub.add_parser('energy-attribute');ea.add_argument('--db',required=True);ea.add_argument('--id',required=True);ea.add_argument('--contract',required=True)
+    ev=sub.add_parser('energy-verify');ev.add_argument('--db',required=True);ev.add_argument('--id');ev.add_argument('--contract')
     l=sub.add_parser('load');l.add_argument('--db',required=True);l.add_argument('path')
     e=sub.add_parser('evaluate');e.add_argument('--db',required=True)
     r=sub.add_parser('report');r.add_argument('--db',required=True);r.add_argument('--out',required=True)
@@ -25,6 +27,12 @@ def main():
     if a.command=='demo':
         work=Path(a.workdir or tempfile.mkdtemp(prefix='evidence-'));work.mkdir(parents=True,exist_ok=True);db=work/'ledger.db';fixture=Path(__file__).resolve().parent.parent/'fixtures'
         initialize(db,fixture/'config.json');load(db,fixture/'events.jsonl');print(evaluate(db));print(export(db,work/'report.json'))
+        from .energy import CONTRACTS,attribute,record as energy_record,verify_energy
+        energy_record(db,fixture/'energy-meter.json')
+        for contract in CONTRACTS:
+            ledger=attribute(db,'meter-S1',contract)
+            print(contract,ledger['status'],ledger['totals'])
+        print('energy_verify',verify_energy(db))
     elif a.command=='init':print(initialize(a.db,a.config))
     elif a.command=='energy-record':
         from .energy import record
@@ -32,6 +40,12 @@ def main():
     elif a.command=='energy-summary':
         from .energy import meter_summary
         print(meter_summary(a.db,a.id))
+    elif a.command=='energy-attribute':
+        from .energy import attribute
+        print(attribute(a.db,a.id,a.contract))
+    elif a.command=='energy-verify':
+        from .energy import verify_energy
+        print(verify_energy(a.db,a.id,a.contract))
     elif a.command=='load':print(load(a.db,a.path))
     elif a.command=='evaluate':print(evaluate(a.db))
     elif a.command=='report':print(export(a.db,a.out))

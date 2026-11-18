@@ -1,0 +1,48 @@
+{
+  "source_id": "meter-multi",
+  "batch_id": "backfill-demo",
+  "unit": "Wh integer; gCO2e per kWh project-local synthetic factor",
+  "jobs": [
+    {"id": "A", "worker": "worker-A"},
+    {"id": "B", "worker": "worker-B"},
+    {"id": "C", "worker": "worker-C"},
+    {"id": "D", "worker": "worker-D"}
+  ],
+  "boundaries": [
+    {"id": "T0", "reading_wh": 200000},
+    {"id": "T1", "reading_wh": 201000},
+    {"id": "T2", "reading_wh": 204000},
+    {"id": "T3", "reading_wh": 9000},
+    {"id": "T4", "reading_wh": 15000},
+    {"id": "T5", "reading_wh": 2000}
+  ],
+  "resets": [
+    {"after_boundary": "T2", "old_wh": 204000, "new_wh": 5000},
+    {"after_boundary": "T4", "old_wh": 15000, "new_wh": 0}
+  ],
+  "slots": [
+    {"id": "S1", "active_jobs": [], "intensity_g_per_kwh": 80},
+    {"id": "S2", "active_jobs": ["A", "B"], "intensity_g_per_kwh": 120},
+    {"id": "S3", "active_jobs": ["A", "B", "C"], "intensity_g_per_kwh": 100},
+    {"id": "S4", "active_jobs": ["A", "B", "C", "D"], "intensity_g_per_kwh": 150},
+    {"id": "S5", "active_jobs": ["C"], "intensity_g_per_kwh": 90}
+  ],
+  "coalition_calibration_wh": {
+    "": 1000,
+    "A": 1500,
+    "B": 1800,
+    "C": 2000,
+    "D": 2500,
+    "A,B": 3000,
+    "A,C": 2800,
+    "A,D": 3600,
+    "B,C": 3200,
+    "B,D": 4000,
+    "C,D": 4200,
+    "A,B,C": 4000,
+    "A,B,D": 5200,
+    "A,C,D": 5000,
+    "B,C,D": 5400,
+    "A,B,C,D": 6000
+  }
+}
