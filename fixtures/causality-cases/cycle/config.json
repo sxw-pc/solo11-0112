@@ -1,0 +1,25 @@
+{
+  "batch_id": "causal-cycle",
+  "rule_version": "v2",
+  "old_multiplier": "1.00",
+  "new_multiplier": "1.10",
+  "ranges": [
+    "2026-01"
+  ],
+  "subjects": {
+    "y1": {
+      "partition": "2026-01"
+    },
+    "y2": {
+      "partition": "2026-01"
+    }
+  },
+  "dependencies": {
+    "y1": [
+      "y2"
+    ],
+    "y2": [
+      "y1"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "batch_id": "causal-nonmono",
+  "rule_version": "v2",
+  "old_multiplier": "1.00",
+  "new_multiplier": "1.10",
+  "ranges": [
+    "2026-01"
+  ],
+  "subjects": {
+    "s1": {
+      "partition": "2026-01"
+    },
+    "s2": {
+      "partition": "2026-01"
+    }
+  },
+  "dependencies": {
+    "s1": [
+      "s2"
+    ]
+  }
+}

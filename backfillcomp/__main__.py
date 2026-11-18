@@ -1,4 +1,4 @@
-import argparse,tempfile
+import argparse,json,tempfile
 from pathlib import Path
 from .ingest import initialize,load
 from .rules import evaluate, action
@@ -9,6 +9,10 @@ def main():
     i=sub.add_parser('init');i.add_argument('--db',required=True);i.add_argument('--config',required=True)
     cp=sub.add_parser('causality-pair');cp.add_argument('--db',required=True);cp.add_argument('--id',required=True);cp.add_argument('--baseline',required=True,type=int);cp.add_argument('--comparison',required=True,type=int);cp.add_argument('--subject',required=True)
     cm=sub.add_parser('causality-manual');cm.add_argument('--db',required=True);cm.add_argument('--id',required=True)
+    for name in ('causality-assess','causality-verify'):
+        ca=sub.add_parser(name);ca.add_argument('--db',required=True);ca.add_argument('--id',required=True)
+        ca.add_argument('--contract',required=True,choices=('necessary_change','minimal_sufficient_change'))
+        ca.add_argument('--out')
     l=sub.add_parser('load');l.add_argument('--db',required=True);l.add_argument('path')
     e=sub.add_parser('evaluate');e.add_argument('--db',required=True)
     r=sub.add_parser('report');r.add_argument('--db',required=True);r.add_argument('--out',required=True)
@@ -25,6 +29,14 @@ def main():
     if a.command=='demo':
         work=Path(a.workdir or tempfile.mkdtemp(prefix='evidence-'));work.mkdir(parents=True,exist_ok=True);db=work/'ledger.db';fixture=Path(__file__).resolve().parent.parent/'fixtures'
         initialize(db,fixture/'config.json');load(db,fixture/'events.jsonl');print(evaluate(db));print(export(db,work/'report.json'))
+        load(db,fixture/'causality-dup-r1.jsonl');load(db,fixture/'causality-dup-r2.jsonl');print(evaluate(db))
+        from .causality import record_pair,assess,verify_certificate
+        record_pair(db,'pair-1',1,2,'r2')
+        for contract in ('necessary_change','minimal_sufficient_change'):
+            cert=assess(db,'pair-1',contract)
+            out=work/f'causality-{contract}.json'
+            out.write_text(json.dumps(cert,ensure_ascii=False,indent=2),encoding='utf-8')
+            print(verify_certificate(db,'pair-1',contract));print(out)
     elif a.command=='init':print(initialize(a.db,a.config))
     elif a.command=='causality-pair':
         from .causality import record_pair
@@ -32,6 +44,16 @@ def main():
     elif a.command=='causality-manual':
         from .causality import manual_diff
         print(manual_diff(a.db,a.id))
+    elif a.command in ('causality-assess','causality-verify'):
+        from .causality import assess,verify_certificate
+        if a.command=='causality-assess':
+            result=assess(a.db,a.id,a.contract)
+        else:
+            result=verify_certificate(a.db,a.id,a.contract)
+        if a.out:
+            out=Path(a.out);out.parent.mkdir(parents=True,exist_ok=True)
+            out.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+        print(json.dumps(result,ensure_ascii=False,indent=2))
     elif a.command=='load':print(load(a.db,a.path))
     elif a.command=='evaluate':print(evaluate(a.db))
     elif a.command=='report':print(export(a.db,a.out))
@@ -41,7 +63,6 @@ def main():
         if hasattr(rules,'verify_decisions'):checks+=rules.verify_decisions(a.db)
         target=rules.verify_target(a.db,a.sandbox) if a.sandbox and hasattr(rules,'verify_target') else []
         if a.out:
-            import json
             out=Path(a.out);out.parent.mkdir(parents=True,exist_ok=True)
             out.write_text(json.dumps({'integrity_problems':checks,'target':target},ensure_ascii=False,indent=2),encoding='utf-8')
             out.with_suffix('.md').write_text('# 独立对账\n\n'+'\n'.join(f'- {x}' for x in target),encoding='utf-8')
@@ -57,7 +78,6 @@ def main():
         from .schedule import activate,release
         print((activate if a.command=='activate' else release)(a.db,a.id))
     elif a.command=='publication-check':
-        import json
         from .publish import check
         print(check(a.db,a.target,a.id,a.consumer,json.loads(Path(a.expected).read_text(encoding='utf-8'))))
     elif a.command=='publish':

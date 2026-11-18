@@ -1,0 +1,51 @@
+{
+  "batch_id": "causal-scale",
+  "rule_version": "v2",
+  "old_multiplier": "1.00",
+  "new_multiplier": "1.10",
+  "ranges": [
+    "2026-01"
+  ],
+  "subjects": {
+    "z00": {
+      "partition": "2026-01"
+    },
+    "z01": {
+      "partition": "2026-01"
+    },
+    "z02": {
+      "partition": "2026-01"
+    },
+    "z03": {
+      "partition": "2026-01"
+    },
+    "z04": {
+      "partition": "2026-01"
+    },
+    "z05": {
+      "partition": "2026-01"
+    },
+    "z06": {
+      "partition": "2026-01"
+    },
+    "z07": {
+      "partition": "2026-01"
+    },
+    "z08": {
+      "partition": "2026-01"
+    },
+    "z09": {
+      "partition": "2026-01"
+    },
+    "z10": {
+      "partition": "2026-01"
+    },
+    "z11": {
+      "partition": "2026-01"
+    },
+    "z12": {
+      "partition": "2026-01"
+    }
+  },
+  "dependencies": {}
+}

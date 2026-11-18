@@ -38,7 +38,10 @@ def verify(db_path):
             problems.append(f'evidence:{ev["id"]}')
     for d in db.execute('SELECT * FROM decision'):
         if not db.execute('SELECT 1 FROM evidence WHERE run_id=? AND subject=?',(d['run_id'],d['subject'])).fetchone():problems.append(f'decision:{d["id"]}')
-        if db.execute('SELECT 1 FROM raw_event WHERE subject=?',(d['subject'],)).fetchone() and not db.execute(
+        # Only events ingested before this run happened can be evidence for it;
+        # sources loaded by later runs must not be projected backwards.
+        cutoff=db.execute('SELECT COALESCE(max(source_id),0) FROM evidence WHERE run_id=? AND event_id IS NOT NULL',(d['run_id'],)).fetchone()[0]
+        if db.execute('SELECT 1 FROM raw_event e JOIN source_file s ON s.id=e.source_id WHERE e.subject=? AND s.id<=?',(d['subject'],cutoff)).fetchone() and not db.execute(
             'SELECT 1 FROM evidence WHERE run_id=? AND subject=? AND event_id IS NOT NULL',(d['run_id'],d['subject'])).fetchone():
             problems.append(f'decision_source:{d["id"]}')
     db.close();return problems

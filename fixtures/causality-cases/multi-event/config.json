@@ -1,0 +1,18 @@
+{
+  "batch_id": "causal-multi",
+  "rule_version": "v2",
+  "old_multiplier": "1.00",
+  "new_multiplier": "1.10",
+  "ranges": [
+    "2026-01"
+  ],
+  "subjects": {
+    "m1": {
+      "partition": "2026-01"
+    },
+    "m2": {
+      "partition": "2026-01"
+    }
+  },
+  "dependencies": {}
+}
